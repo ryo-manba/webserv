@@ -4,12 +4,12 @@ SRCS := main.cpp
 all: $(NAME)
 
 $(NAME):
-	c++ $(SRCS)
+	c++ $(SRCS) -o $(NAME)
 
 clean:
-	rm a.out
+	rm $(NAME)
 
 test: $(NAME)
-	./a.out &
+	./$(NAME) &
 	curl http:/127.0.0.1:8080
-	pkill a.out
+	pkill $(NAME)

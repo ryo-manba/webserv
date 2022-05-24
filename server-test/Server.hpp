@@ -17,11 +17,21 @@
 
 class Server
 {
-public:
+private:
     struct sockaddr_in a_addr;
     Socket socket;
-    int status;
+    int status_code;
 
+    int request_size, response_size;
+    char request_message[SIZE];
+    char response_message[SIZE];
+    char method[SIZE];
+    char target[SIZE];
+    char header_field[SIZE];
+    char body[SIZE];
+    unsigned int file_size;
+
+public:
     Server(void)
     {
     }
@@ -176,14 +186,14 @@ public:
      * body_size：ボディのサイズ
      * 戻り値：レスポンスメッセージのデータサイズ（バイト長）
      */
-    int createResponseMessage(char *response_message, int status, char *header, char *body, unsigned int body_size)
+    int createResponseMessage(char *response_message, int status_code, char *header, char *body, unsigned int body_size)
     {
         unsigned int no_body_len;
         unsigned int body_len;
 
         response_message[0] = '\0';
 
-        if (status == 200)
+        if (status_code == 200)
         {
             // レスポンス行とヘッダーフィールドの文字列を作成
             sprintf(response_message, "HTTP/1.1 200 OK\r\n%s\r\n", header);
@@ -194,7 +204,7 @@ public:
             // ヘッダーフィールドの後ろにボディをコピー
             memcpy(&response_message[no_body_len], body, body_len);
         }
-        else if (status == 404)
+        else if (status_code == 404)
         {
             // レスポンス行とヘッダーフィールドの文字列を作成
             sprintf(response_message, "HTTP/1.1 404 Not Found\r\n%s\r\n", header);
@@ -205,7 +215,7 @@ public:
         else
         {
             // statusが200・404以外はこのプログラムで非サポート
-            throw std::runtime_error("Not support status");
+            throw std::runtime_error("Not support status_code");
         }
         return no_body_len + body_len;
     }
@@ -239,6 +249,31 @@ public:
         return send_size;
     }
 
+    void parseRequestMethod(char method[SIZE], char target[SIZE], char body[SIZE])
+    {
+        // メソッドがGET以外はステータスコードを404にする
+        if (strcmp(method, "GET") == 0)
+        {
+            if (strcmp(target, "/") == 0)
+            {
+                // /が指定されたときはindex.htmlに置き換える
+                strcpy(target, "/index.html");
+            }
+
+            // GETの応答をするために必要な処理を行う
+            status_code = getProcessing(body, &target[1]);
+        }
+        else
+        {
+            status_code = 404;
+        }
+    }
+
+    void createHeader(char header_field[SIZE], unsigned int file_size)
+    {
+        sprintf(header_field, "Content-Length: %u\r\n", file_size);
+    }
+
     /*
      * HTTPサーバーの処理を行う関数
      * sock：接続済のソケット
@@ -246,20 +281,11 @@ public:
      */
     void httpServer(int sock)
     {
-        int request_size, response_size;
-        char request_message[SIZE];
-        char response_message[SIZE];
-        char method[SIZE];
-        char target[SIZE];
-        char header_field[SIZE];
-        char body[SIZE];
-        unsigned int file_size;
-
         while (true)
         {
             // リクエスト・メッセージを受信
-            int request_size = recvRequestMessage(sock, request_message, SIZE);
-            if (request_size == 0)
+            request_size = recvRequestMessage(sock, request_message, SIZE);
+            if (request_size == 0) // 0のとき接続終了
                 break;
             // 受信した文字列を表示
             showMessage(request_message, request_size);
@@ -267,30 +293,18 @@ public:
             // 受信した文字列を解析してメソッドやリクエストターゲットを取得
             parseRequestMessage(method, target, request_message);
 
-            // メソッドがGET以外はステータスコードを404にする
-            if (strcmp(method, "GET") == 0)
-            {
-                if (strcmp(target, "/") == 0)
-                {
-                    // /が指定されたときはindex.htmlに置き換える
-                    strcpy(target, "/index.html");
-                }
+            // メソッドの処理
+            parseRequestMethod(method, target, body);
 
-                // GETの応答をするために必要な処理を行う
-                status = getProcessing(body, &target[1]);
-            }
-            else
-            {
-                status = 404;
-            }
-            // ヘッダーフィールド作成(今回はContent-Lengthのみ)
             file_size = getFileSize(&target[1]);
-            sprintf(header_field, "Content-Length: %u\r\n", file_size);
+
+            // ヘッダーフィールド作成(今回はContent-Lengthのみ)
+            createHeader(header_field, file_size);
 
             // レスポンスメッセージを作成
-            response_size = createResponseMessage(response_message, status, header_field, body, file_size);
+            response_size = createResponseMessage(response_message, status_code, header_field, body, file_size);
 
-            // 送信するメッセージを表示
+            // 送信するメッセージを表示(デバッグ)
             showMessage(response_message, response_size);
 
             // レスポンスメッセージを送信する
