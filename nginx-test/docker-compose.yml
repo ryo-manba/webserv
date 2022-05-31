@@ -3,7 +3,27 @@ services:
   nginx:
     image: nginx:latest
     ports:
-      - 8080:80
-    volumes:
+      - 80:80
+      - 81:81
+    depends_on:
+      - app
+    volumes: # コロン前がシンボリックリンクになるイメージ
       - ./public:/usr/share/nginx/html
-      - ./default.conf:/etc/nginx/conf.d/default.conf
+      - ./data:/data
+#     - ./conf/default.conf:/etc/nginx/conf.d/default.conf
+#      - ./conf/multi_port.conf:/etc/nginx/conf.d/default.conf
+#      - ./conf/same_port.conf:/etc/nginx/conf.d/default.conf
+#      - ./conf/allow_method.conf:/etc/nginx/conf.d/default.conf
+#      - ./conf/redirect.conf:/etc/nginx/conf.d/default.conf
+#      - ./conf/directory_listing.conf:/etc/nginx/conf.d/default.conf
+#      - ./conf/setting_root.conf:/etc/nginx/conf.d/default.conf
+#      - ./conf/default_page.conf:/etc/nginx/conf.d/default.conf
+#      - ./conf/default_page.conf:/etc/nginx/conf.d/default.conf
+#      - ./conf/cgi.conf:/etc/nginx/conf.d/default.conf
+      - ./conf/upload.conf:/etc/nginx/conf.d/default.conf
+
+  app:
+    image: php:7.1.9-fpm-alpine
+    volumes:
+      - ./data:/data
+
