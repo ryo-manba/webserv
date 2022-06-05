@@ -1,12 +1,13 @@
 #include "csapp.h"
 
-void unix_error(char *msg)
+void unix_error(const char *msg)
 {
     fprintf(stderr, "%s: %s\n", msg, strerror(errno));
     exit(0);
 }
 
-void Setsockopt(int s, int level, int optname, const void *optval, int optlen) {
+void Setsockopt(int s, int level, int optname, const void *optval, int optlen)
+{
     int rc;
     if ((rc = setsockopt(s, level, optname, optval, optlen)) < 0)
         unix_error("Setsockopt error");
@@ -25,11 +26,12 @@ int open_listenfd(char *port)
     getaddrinfo(NULL, port, &hints, &listp);
 
     // listすべての初期設定
-    for (p = listp; p; p = p->ai_next) {
+    for (p = listp; p; p = p->ai_next)
+    {
         if ((listenfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) < 0)
             continue;
 
-        Setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, (const void*)&optval, sizeof(int));
+        Setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, (const void *)&optval, sizeof(int));
 
         if (bind(listenfd, p->ai_addr, p->ai_addrlen) == 0)
             break;
@@ -41,12 +43,12 @@ int open_listenfd(char *port)
         return -1;
 
     // 接続要求を受け付けるsocket
-    if (listen(listenfd, LISTENQ) < 0) {
+    if (listen(listenfd, LISTENQ) < 0)
+    {
         return -1;
     }
     return listenfd;
 }
-
 
 int Open_listenfd(char *port)
 {
@@ -57,21 +59,21 @@ int Open_listenfd(char *port)
     return rc;
 }
 
-int Select(int  n, fd_set *readfds, fd_set *writefds,
-	   fd_set *exceptfds, struct timeval *timeout) 
+int Select(int n, fd_set *readfds, fd_set *writefds,
+           fd_set *exceptfds, struct timeval *timeout)
 {
     int rc;
 
     if ((rc = select(n, readfds, writefds, exceptfds, timeout)) < 0)
-	unix_error("Select error");
+        unix_error("Select error");
     return rc;
 }
 
-int Accept(int s, struct sockaddr *addr, socklen_t *addrlen) 
+int Accept(int s, struct sockaddr *addr, socklen_t *addrlen)
 {
     int rc;
 
     if ((rc = accept(s, addr, addrlen)) < 0)
-	unix_error("Accept error");
+        unix_error("Accept error");
     return rc;
 }
