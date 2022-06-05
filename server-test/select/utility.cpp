@@ -1,62 +1,24 @@
 #include "utility.hpp"
 
+// error
 void unix_error(const char *msg)
 {
     fprintf(stderr, "%s: %s\n", msg, strerror(errno));
     exit(0);
 }
 
+void app_error(const char *msg)
+{
+    fprintf(stderr, "%s\n", msg);
+    exit(0);
+}
+
+// wrapper
 void Setsockopt(int s, int level, int optname, const void *optval, int optlen)
 {
     int rc;
     if ((rc = setsockopt(s, level, optname, optval, optlen)) < 0)
         unix_error("Setsockopt error");
-}
-
-int open_listenfd(char *port)
-{
-    struct addrinfo hints, *listp, *p;
-    int fd, optval = 1;
-
-    memset(&hints, 0, sizeof(struct addrinfo));
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags = AI_PASSIVE;
-    hints.ai_flags |= AI_NUMERICSERV;
-    hints.ai_flags |= AI_ADDRCONFIG;
-    getaddrinfo(NULL, port, &hints, &listp);
-
-    // listすべての初期設定
-    for (p = listp; p; p = p->ai_next)
-    {
-        if ((fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) < 0)
-            continue;
-
-        Setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (const void *)&optval, sizeof(int));
-
-        if (bind(fd, p->ai_addr, p->ai_addrlen) == 0)
-            break;
-        close(fd);
-    }
-
-    freeaddrinfo(listp);
-    if (!p)
-        return -1;
-
-    // 接続要求を受け付けるsocket
-    if (listen(fd, LISTENQ) < 0)
-    {
-        return -1;
-    }
-    return fd;
-}
-
-int Open_listenfd(char *port)
-{
-    int rc;
-
-    if ((rc = open_listenfd(port)) < 0)
-        unix_error("Open_listenfd error");
-    return rc;
 }
 
 int Select(int n, fd_set *readfds, fd_set *writefds,
@@ -76,10 +38,4 @@ int Accept(int s, struct sockaddr *addr, socklen_t *addrlen)
     if ((rc = accept(s, addr, addrlen)) < 0)
         unix_error("Accept error");
     return rc;
-}
-
-void app_error(const char *msg)
-{
-    fprintf(stderr, "%s\n", msg);
-    exit(0);
 }

@@ -20,7 +20,8 @@ Server::~Server()
 
 void Server::listen(const char *port)
 {
-    listen_fds_[listens_] = Open_listenfd((char *)port);
+    if ((listen_fds_[listens_] = open_listenfd((char *)port)) < 0)
+        unix_error("open_listenfd error");
     listens_ += 1;
 }
 
@@ -104,7 +105,7 @@ void Server::check_clients()
                 memset(buf, 0, sizeof(buf));
             }
             else
-            { // EOFが見つかった場合poolから除去する
+            { // EOFが見つかった場合除去する
                 std::cout << requests_[i] << std::endl;
                 close(connfd);
                 FD_CLR(connfd, &read_set_);
@@ -114,21 +115,39 @@ void Server::check_clients()
     }
 }
 
-int Server::Select(int n, fd_set *readfds, fd_set *writefds,
-                   fd_set *exceptfds, struct timeval *timeout)
+int Server::open_listenfd(char *port)
 {
-    int rc;
+    struct addrinfo hints, *listp, *p;
+    int fd, optval = 1;
 
-    if ((rc = select(n, readfds, writefds, exceptfds, timeout)) < 0)
-        unix_error("Select error");
-    return rc;
-}
+    memset(&hints, 0, sizeof(struct addrinfo));
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE;
+    hints.ai_flags |= AI_NUMERICSERV;
+    hints.ai_flags |= AI_ADDRCONFIG;
+    getaddrinfo(NULL, port, &hints, &listp);
 
-int Server::Accept(int s, struct sockaddr *addr, socklen_t *addrlen)
-{
-    int rc;
+    // listすべての初期設定
+    for (p = listp; p; p = p->ai_next)
+    {
+        if ((fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) < 0)
+            continue;
 
-    if ((rc = accept(s, addr, addrlen)) < 0)
-        unix_error("Accept error");
-    return rc;
+        Setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (const void *)&optval, sizeof(int));
+
+        if (bind(fd, p->ai_addr, p->ai_addrlen) == 0)
+            break;
+        close(fd);
+    }
+
+    freeaddrinfo(listp);
+    if (!p)
+        return -1;
+
+    // 接続要求を受け付けるsocket
+    if (::listen(fd, LISTENQ) < 0)
+    {
+        return -1;
+    }
+    return fd;
 }

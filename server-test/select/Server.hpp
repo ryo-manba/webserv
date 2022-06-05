@@ -28,10 +28,7 @@ public:
     void run();
     void add_client(int connfd);
     void check_clients();
-
-    int Select(int n, fd_set *readfds, fd_set *writefds,
-               fd_set *exceptfds, struct timeval *timeout);
-    int Accept(int s, struct sockaddr *addr, socklen_t *addrlen);
+    int open_listenfd(char *port);
 };
 
 #endif
