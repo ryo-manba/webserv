@@ -15,5 +15,16 @@
 #define MAXBUF 8192  /* Max I/O buffer size */
 #define LISTENQ 1024 /* Second argument to listen() */
 
+//void init_pool(pool *);
+//void add_client(int, pool *);
+//void check_clients(pool *);
+int Open_listenfd(char *);
+int Accept(int s, struct sockaddr *addr, socklen_t *addrlen);
+int Select(int n, fd_set *readfds, fd_set *writefds,
+           fd_set *exceptfds, struct timeval *timeout);
+void unix_error(const char *msg);
+void app_error(const char *msg);
+
+
 #endif
 

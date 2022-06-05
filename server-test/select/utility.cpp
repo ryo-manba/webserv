@@ -1,4 +1,4 @@
-#include "csapp.h"
+#include "utility.hpp"
 
 void unix_error(const char *msg)
 {
@@ -16,7 +16,7 @@ void Setsockopt(int s, int level, int optname, const void *optval, int optlen)
 int open_listenfd(char *port)
 {
     struct addrinfo hints, *listp, *p;
-    int listenfd, optval = 1;
+    int fd, optval = 1;
 
     memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_socktype = SOCK_STREAM;
@@ -28,14 +28,14 @@ int open_listenfd(char *port)
     // listすべての初期設定
     for (p = listp; p; p = p->ai_next)
     {
-        if ((listenfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) < 0)
+        if ((fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) < 0)
             continue;
 
-        Setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, (const void *)&optval, sizeof(int));
+        Setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (const void *)&optval, sizeof(int));
 
-        if (bind(listenfd, p->ai_addr, p->ai_addrlen) == 0)
+        if (bind(fd, p->ai_addr, p->ai_addrlen) == 0)
             break;
-        close(listenfd);
+        close(fd);
     }
 
     freeaddrinfo(listp);
@@ -43,11 +43,11 @@ int open_listenfd(char *port)
         return -1;
 
     // 接続要求を受け付けるsocket
-    if (listen(listenfd, LISTENQ) < 0)
+    if (listen(fd, LISTENQ) < 0)
     {
         return -1;
     }
-    return listenfd;
+    return fd;
 }
 
 int Open_listenfd(char *port)
@@ -76,4 +76,10 @@ int Accept(int s, struct sockaddr *addr, socklen_t *addrlen)
     if ((rc = accept(s, addr, addrlen)) < 0)
         unix_error("Accept error");
     return rc;
+}
+
+void app_error(const char *msg)
+{
+    fprintf(stderr, "%s\n", msg);
+    exit(0);
 }
