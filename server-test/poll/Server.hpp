@@ -16,27 +16,21 @@
 #include <netdb.h>
 #include "Socket.hpp"
 
-#define TRUE 1
-#define FALSE 0
-
 using namespace std;
 
 class Server
 {
 public:
-    char buffer[1028];
-    bool close_conn;
-    bool compress_array;
+    bool is_close_connection;
+    bool is_compress;
 
+    // 接続要求受け取りに使う
     set<int> listen_fds;
-
+    // すべてのfd
     vector<pollfd> poll_fds;
 
-    vector<Socket*> sockets;
-
-
     // fd, 受け取ったデータ
-    map<int, std::string> received_buffers;
+    map<int, std::string> received_data;
 
     // methods
     Server();
@@ -45,14 +39,15 @@ public:
     void init_pollfds();
     void init();
 
-    void run();
     void start();
 
     int open_listenfd(char *port);
     void listen(const char *port);
+
     void polling();
     void accept_fds(int fd);
     void active_fds(vector<pollfd>::iterator it);
+    void compress_array();
     void receive(vector<pollfd>::iterator it);
-
+    void post(vector<pollfd>::iterator it);
 };

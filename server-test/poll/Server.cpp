@@ -62,7 +62,6 @@ void Server::listen(const char *port)
     int fd = open_listenfd((char *)port);
     if (fd < 0)
         error_exit("open listen failed");
-    // listenのみで使われるset
     listen_fds.insert(fd);
 }
 
@@ -71,7 +70,7 @@ void Server::init()
     int on = 1;
     for (set<int>::iterator it = listen_fds.begin(); it != listen_fds.end(); it++)
     {
-        // fdをノンブロッキングに設定する
+        // fdをノンブロッキングに設定する(fcntlを使う)
         int rc = ioctl(*it, FIONBIO, (char *)&on);
         if (rc < 0)
             error_exit("ioctl() failed");
@@ -79,6 +78,8 @@ void Server::init()
         pollfd pfd;
         pfd.fd = *it;
         pfd.events = POLLIN;
+
+        // 監視用のfdをセットする
         poll_fds.push_back(pfd);
     }
 }
@@ -111,106 +112,77 @@ void Server::accept_fds(int fd)
             break;
         }
 
-        // DOUT() << "New incoming connection - " << new_sd << std::endl;
-
         pollfd pfd;
         pfd.fd = new_sd;
-        // 最初はPOLLIN
         pfd.events = (POLLIN | POLLOUT);
+
+        // active socketを追加する
         poll_fds.push_back(pfd);
         // DOUT() << "poll_fds.push_back(new_fd)" << std::endl;
     }
 }
 
-// void Server::receive(vector<pollfd>::iterator it)
-// {
-//     close_conn = false;
-//     while (1)
-//     {
-//         // すべてのデータを受け取る
-//         int rc = recv(it->fd, buffer, sizeof(buffer), 0);
-//         if (rc < 0)
-//         {
-//             if (errno != EWOULDBLOCK)
-//                 error_exit("recv() failed");
-//             DSOUT() << received_buffers[it->fd] << std::endl;
-//             break;
-//         }
-//         // recvの戻り値が0の場合 connectionを切断する
-//         if (rc == 0)
-//         {
-// DOUT() << "Connection closed" << std::endl;
-//             close_conn = true;
-//             break;
-//         }
+void Server::receive(vector<pollfd>::iterator it)
+{
+    char buf[1024];
+    while (1)
+    {
+        // すべてのデータを受け取る
+        int rc = recv(it->fd, buf, sizeof(buf), 0);
+        if (rc < 0)
+        {
+            if (errno != EWOULDBLOCK)
+                error_exit("recv() failed");
+            break;
+        }
+        // recvの戻り値が0の場合 connectionを切断する
+        if (rc == 0)
+        {
+            DSOUT() << "Connection closed" << std::endl;
+            DSOUT() << received_data[it->fd] << std::endl;
+            received_data[it->fd] = "";
 
-//        DOUT() << "read count : " << rc << std::endl;
-//         if (received_buffers.count(it->fd) == 0)
-//             received_buffers[it->fd] = "";
-//         received_buffers[it->fd] = received_buffers[it->fd] + std::string(buffer, rc);
-//        DOUT() << "finish add_buffers" << std::endl;
-//     }
-//     // データの受信が終わったのでfdをクローズする
-//     if (close_conn == true)
-//     {
-//         close_conn = false;
-//         close(it->fd);
-//         it->fd = -1;
-//         compress_array = true;
-//     }
-// }
+            is_close_connection = true;
+            break;
+        }
+        received_data[it->fd] += std::string(buf, rc);
+    }
+    // データの受信が終わったのでfdをクローズする
+    if (is_close_connection == true)
+    {
+        close(it->fd);
+        it->fd = -1;
+        is_compress = true;
+    }
+}
+
+void Server::post(vector<pollfd>::iterator it)
+{
+    static_cast<void>(it);
+}
 
 void Server::active_fds(vector<pollfd>::iterator it)
 {
-    // DOUT() << "fd      : " << it->fd << std::endl;
-    // DOUT() << "revents : " << it->revents << std::endl;
-    close_conn = false;
+    is_close_connection = false;
     if (it->revents & POLLIN)
     {
-        // DOUT() << "========POLL IN=======" << std::endl;
-        while (1)
-        {
-            // すべてのデータを受け取る
-            int rc = recv(it->fd, buffer, sizeof(buffer), 0);
-            if (rc < 0)
-            {
-                if (errno != EWOULDBLOCK)
-                    error_exit("recv() failed");
-                break;
-            }
-            // recvの戻り値が0の場合 connectionを切断する
-            if (rc == 0)
-            {
-                DSOUT() << "Connection closed" << std::endl;
-                DSOUT() << received_buffers[it->fd] << std::endl;
-                received_buffers[it->fd] = "";
-
-                close_conn = true;
-                break;
-            }
-
-            // DOUT() << "read count : " << rc << std::endl;
-            received_buffers[it->fd] = received_buffers[it->fd] + std::string(buffer, rc);
-            // DOUT() << "finish add_buffers" << std::endl;
-        }
-        // データの受信が終わったのでfdをクローズする
-        if (close_conn == true)
-        {
-            // DOUT() << "close fd :" << it->fd << std::endl;
-            close(it->fd);
-            it->fd = -1;
-            compress_array = true;
-        }
+        receive(it);
     }
     if (it->revents & POLLOUT)
     {
-        //        DSOUT() << "========POLL OUT=======" << std::endl;
-        //        DSOUT() << received_buffers[it->fd] << std::endl;
-        //        received_buffers[it->fd] = "";
-        //        close(it->fd);
-        // 削除の動作をどうするか
-        //        it->fd = -1;
-        //        compress_array = true;
+        post(it);
+    }
+}
+
+void Server::compress_array()
+{
+    is_compress = false;
+    for (vector<pollfd>::iterator it = poll_fds.begin(); it != poll_fds.end();)
+    {
+        if (it->fd == -1)
+            it = poll_fds.erase(it);
+        else
+            it++;
     }
 }
 
@@ -222,7 +194,7 @@ void Server::start()
 
         for (vector<pollfd>::iterator it = poll_fds.begin(); it != poll_fds.end(); it++)
         {
-            // DOUT() << "fd   : " << it->fd << std::endl;
+            // reventsに変化がない場合はcontinue
             if (it->revents == 0)
                 continue;
 
@@ -236,28 +208,15 @@ void Server::start()
                 accept_fds(it->fd);
                 break;
             }
-            else // listenソケットではなかった場合
+            else // 実際にやり取りを行う
             {
                 active_fds(it);
             }
         }
-        // DOUT() << "commpress_array: " << std::boolalpha << compress_array << std::endl;
         // 削除処理
-        if (compress_array == true)
+        if (is_compress == true)
         {
-            compress_array = false;
-            for (vector<pollfd>::iterator it = poll_fds.begin(); it != poll_fds.end();)
-            {
-                // DOUT() << "delete fd : " << it->fd << std::endl;
-                if (it->fd == -1)
-                {
-                    it = poll_fds.erase(it);
-                }
-                else
-                {
-                    it++;
-                }
-            }
+            compress_array();
         }
     }
 }
