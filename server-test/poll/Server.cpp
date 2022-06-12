@@ -1,6 +1,8 @@
 #include "Server.hpp"
 #include "test_common.hpp"
 
+#include <sstream>
+
 void error_exit(const char *msg)
 {
     perror(msg);
@@ -114,7 +116,8 @@ void Server::accept_fds(int fd)
 
         pollfd pfd;
         pfd.fd = new_sd;
-        pfd.events = (POLLIN | POLLOUT);
+//        pfd.events = (POLLIN | POLLOUT);
+        pfd.events = POLLIN;
 
         // active socketを追加する
         poll_fds.push_back(pfd);
@@ -133,6 +136,13 @@ void Server::receive(std::vector<pollfd>::iterator it)
         {
             if (errno != EWOULDBLOCK)
                 error_exit("recv() failed");
+
+            DOUT() << "finished receive" << std::endl;
+            for (std::vector<pollfd>::iterator it2 = poll_fds.begin(); it2 != poll_fds.end(); it2++) {
+                if (it2->fd == it->fd) {
+                    it2->events |= POLLOUT;
+                }
+            }
             break;
         }
         // recvの戻り値が0の場合 connectionを切断する
@@ -156,9 +166,45 @@ void Server::receive(std::vector<pollfd>::iterator it)
     }
 }
 
+std::string Server::create_response(void)
+{
+    std::stringstream ss;
+
+    // status line
+    ss << "HTTP/1.1 " << 200 << " " << "OK" << "\r\n";
+
+    // header
+    ss << "Date: Sun, 12 Jun 2022 13:23:58 GMT" << "\r\n";
+    ss << "Content-Length: 5\r\n";
+    ss << "Content-Type: text/html\r\n";
+    ss << "Connection: keep-alive\r\n";
+    ss << "Last-Modified: Thu, 27 Feb 2020 07:10:16 GMT\r\n";
+    ss << "ETag: \"21a-59f8969af8600\"\r\n";
+    ss << "Accept-Ranges: bytes\r\n";
+    ss << "Server: Apache\r\n";
+    ss << "\r\n";
+
+    // message
+    ss << "hello";
+
+    return ss.str();
+}
+
+
 void Server::post(std::vector<pollfd>::iterator it)
 {
     static_cast<void>(it);
+    DOUT() << "it->fd: " << it->fd << std::endl;
+    DOUT() << "send message:" << std::endl;
+    DOUT() << create_response() << std::endl;
+    std::string resp = create_response();
+    size_t len = resp.size();
+    send(it->fd, resp.c_str(), len, 0);
+    for (std::vector<pollfd>::iterator it2 = poll_fds.begin(); it2 != poll_fds.end(); it2++) {
+        if (it2->fd == it->fd) {
+            it2->events = POLLIN;
+        }
+    }
 }
 
 void Server::active_fds(std::vector<pollfd>::iterator it)
@@ -188,6 +234,7 @@ void Server::compress_array()
 
 void Server::start()
 {
+    DOUT() << "Server started" << std::endl;
     while (1)
     {
         polling();

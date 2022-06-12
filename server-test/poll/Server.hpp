@@ -47,4 +47,7 @@ public:
     void compress_array();
     void receive(std::vector<pollfd>::iterator it);
     void post(std::vector<pollfd>::iterator it);
+
+    std::string create_response(void);
+
 };
