@@ -99,14 +99,14 @@ void Server::check_clients()
         if ((connfd > 0) && (FD_ISSET(connfd, &ready_set_)))
         {
             nready_--;
-            if ((n = read(connfd, buf, MAXLINE)) != 0)
+            if ((n = recv(connfd, buf, MAXLINE, 0)) != 0)
             {
-                requests_[i] += std::string(buf);
-                memset(buf, 0, sizeof(buf));
+                requests_[i] += std::string(buf, n);
             }
             else
             { // EOFが見つかった場合除去する
                 std::cout << requests_[i] << std::endl;
+                requests_[i] = "";
                 close(connfd);
                 FD_CLR(connfd, &read_set_);
                 client_fds_[i] = -1;
