@@ -14,10 +14,12 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
+#include <sstream>
 
 class Server
 {
-public:
+private:
+    // member variables
     bool is_close_connection;
     bool is_compress;
 
@@ -29,25 +31,34 @@ public:
     // fd, 受け取ったデータ
     std::map<int, std::string> received_data;
 
+public:
     // methods
-    Server();
-    ~Server();
+    Server(void);
+    ~Server(void);
 
-    void init_pollfds();
-    void init();
+    void init(void);
+    void init_pollfds(void);
 
-    void start();
+    void start(void);
 
-    int open_listenfd(char *port);
-    void listen(const char *port);
+    // 接続受け付け
+    void listen_socket(const char *port);
+    int open_listen_fd(char *port);
+    void accept_connection(int fd);
 
-    void polling();
-    void accept_fds(int fd);
+    void polling(void);
     void active_fds(std::vector<pollfd>::iterator it);
-    void compress_array();
-    void receive(std::vector<pollfd>::iterator it);
-    void post(std::vector<pollfd>::iterator it);
+    void compress_array(void);
+    void receive_and_concat_data(std::vector<pollfd>::iterator it);
 
+    // レスポンスの生成()
     std::string create_response(void);
+
+    // レスポンスをデータにエンコード
+//    write_buffer_t  encode_to_write_data(response_t response);
+
+
+    // データの送信
+    void send_data(std::vector<pollfd>::iterator it);
 
 };

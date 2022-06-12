@@ -1,19 +1,17 @@
 #include "Server.hpp"
 #include "test_common.hpp"
 
-#include <sstream>
-
 void error_exit(const char *msg)
 {
     perror(msg);
     exit(EXIT_FAILURE);
 }
 
-Server::Server()
+Server::Server(void)
 {
 }
 
-Server::~Server()
+Server::~Server(void)
 {
     for (std::vector<pollfd>::iterator it = poll_fds.begin(); it != poll_fds.end(); it++)
     {
@@ -22,7 +20,7 @@ Server::~Server()
     }
 }
 
-int Server::open_listenfd(char *port)
+int Server::open_listen_fd(char *port)
 {
     struct addrinfo hints, *listp, *p;
     int fd, optval = 1;
@@ -52,22 +50,22 @@ int Server::open_listenfd(char *port)
         return -1;
 
     // 接続要求を受け付けるsocket
-    if (::listen(fd, 10) < 0)
+    if (::listen(fd, 1024) < 0)
     {
         return -1;
     }
     return fd;
 }
 
-void Server::listen(const char *port)
+void Server::listen_socket(const char *port)
 {
-    int fd = open_listenfd((char *)port);
+    int fd = open_listen_fd((char *)port);
     if (fd < 0)
         error_exit("open listen failed");
     listen_fds.insert(fd);
 }
 
-void Server::init()
+void Server::init(void)
 {
     int on = 1;
     for (std::set<int>::iterator it = listen_fds.begin(); it != listen_fds.end(); it++)
@@ -86,20 +84,24 @@ void Server::init()
     }
 }
 
-void Server::polling()
+void Server::polling(void)
 {
-    // DOUT() << ("Waiting on poll()...") << std::endl;
+    DOUT() << ("Waiting on poll()...") << std::endl;
 
     //    int rc = poll(&*poll_fds.begin(), poll_fds.size(), 100000);
     int rc = poll(&*poll_fds.begin(), poll_fds.size(), -1);
 
     if (rc < 0)
+    {
         error_exit("poll() failed");
+    }
     if (rc == 0)
+    {
         error_exit("poll() timed out.  End program.");
+    }
 }
 
-void Server::accept_fds(int fd)
+void Server::accept_connection(int fd)
 {
     // DOUT() << "Listening socket is readable" << std::endl;
     // リッスン待ちのfdをすべて受け入れる
@@ -109,14 +111,16 @@ void Server::accept_fds(int fd)
         if (new_sd < 0)
         {
             if (errno != EWOULDBLOCK)
+            {
                 error_exit("accept() failed");
+            }
             // DOUT() << "===============EWOULDBLOCK================" << std::endl;
             break;
         }
 
         pollfd pfd;
         pfd.fd = new_sd;
-//        pfd.events = (POLLIN | POLLOUT);
+        //        pfd.events = (POLLIN | POLLOUT);
         pfd.events = POLLIN;
 
         // active socketを追加する
@@ -125,7 +129,7 @@ void Server::accept_fds(int fd)
     }
 }
 
-void Server::receive(std::vector<pollfd>::iterator it)
+void Server::receive_and_concat_data(std::vector<pollfd>::iterator it)
 {
     char buf[1024];
     while (1)
@@ -138,8 +142,10 @@ void Server::receive(std::vector<pollfd>::iterator it)
                 error_exit("recv() failed");
 
             DOUT() << "finished receive" << std::endl;
-            for (std::vector<pollfd>::iterator it2 = poll_fds.begin(); it2 != poll_fds.end(); it2++) {
-                if (it2->fd == it->fd) {
+            for (std::vector<pollfd>::iterator it2 = poll_fds.begin(); it2 != poll_fds.end(); it2++)
+            {
+                if (it2->fd == it->fd)
+                {
                     it2->events |= POLLOUT;
                 }
             }
@@ -171,10 +177,13 @@ std::string Server::create_response(void)
     std::stringstream ss;
 
     // status line
-    ss << "HTTP/1.1 " << 200 << " " << "OK" << "\r\n";
+    ss << "HTTP/1.1 " << 200 << " "
+       << "OK"
+       << "\r\n";
 
     // header
-    ss << "Date: Sun, 12 Jun 2022 13:23:58 GMT" << "\r\n";
+    ss << "Date: Sun, 12 Jun 2022 13:23:58 GMT"
+       << "\r\n";
     ss << "Content-Length: 5\r\n";
     ss << "Content-Type: text/html\r\n";
     ss << "Connection: keep-alive\r\n";
@@ -190,8 +199,7 @@ std::string Server::create_response(void)
     return ss.str();
 }
 
-
-void Server::post(std::vector<pollfd>::iterator it)
+void Server::send_data(std::vector<pollfd>::iterator it)
 {
     static_cast<void>(it);
     DOUT() << "it->fd: " << it->fd << std::endl;
@@ -200,8 +208,10 @@ void Server::post(std::vector<pollfd>::iterator it)
     std::string resp = create_response();
     size_t len = resp.size();
     send(it->fd, resp.c_str(), len, 0);
-    for (std::vector<pollfd>::iterator it2 = poll_fds.begin(); it2 != poll_fds.end(); it2++) {
-        if (it2->fd == it->fd) {
+    for (std::vector<pollfd>::iterator it2 = poll_fds.begin(); it2 != poll_fds.end(); it2++)
+    {
+        if (it2->fd == it->fd)
+        {
             it2->events = POLLIN;
         }
     }
@@ -212,27 +222,31 @@ void Server::active_fds(std::vector<pollfd>::iterator it)
     is_close_connection = false;
     if (it->revents & POLLIN)
     {
-        receive(it);
+        receive_and_concat_data(it);
     }
     if (it->revents & POLLOUT)
     {
-        post(it);
+        send_data(it);
     }
 }
 
-void Server::compress_array()
+void Server::compress_array(void)
 {
     is_compress = false;
     for (std::vector<pollfd>::iterator it = poll_fds.begin(); it != poll_fds.end();)
     {
         if (it->fd == -1)
+        {
             it = poll_fds.erase(it);
+        }
         else
+        {
             it++;
+        }
     }
 }
 
-void Server::start()
+void Server::start(void)
 {
     DOUT() << "Server started" << std::endl;
     while (1)
@@ -252,7 +266,7 @@ void Server::start()
             // listenの場合
             if (listen_fds.find(it->fd) != listen_fds.end())
             {
-                accept_fds(it->fd);
+                accept_connection(it->fd);
                 break;
             }
             else // 実際にやり取りを行う
