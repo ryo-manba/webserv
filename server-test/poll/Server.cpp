@@ -13,7 +13,7 @@ Server::Server()
 
 Server::~Server()
 {
-    for (vector<pollfd>::iterator it = poll_fds.begin(); it != poll_fds.end(); it++)
+    for (std::vector<pollfd>::iterator it = poll_fds.begin(); it != poll_fds.end(); it++)
     {
         if (it->fd >= 0)
             close(it->fd);
@@ -68,7 +68,7 @@ void Server::listen(const char *port)
 void Server::init()
 {
     int on = 1;
-    for (set<int>::iterator it = listen_fds.begin(); it != listen_fds.end(); it++)
+    for (std::set<int>::iterator it = listen_fds.begin(); it != listen_fds.end(); it++)
     {
         // fdをノンブロッキングに設定する(fcntlを使う)
         int rc = ioctl(*it, FIONBIO, (char *)&on);
@@ -122,7 +122,7 @@ void Server::accept_fds(int fd)
     }
 }
 
-void Server::receive(vector<pollfd>::iterator it)
+void Server::receive(std::vector<pollfd>::iterator it)
 {
     char buf[1024];
     while (1)
@@ -156,12 +156,12 @@ void Server::receive(vector<pollfd>::iterator it)
     }
 }
 
-void Server::post(vector<pollfd>::iterator it)
+void Server::post(std::vector<pollfd>::iterator it)
 {
     static_cast<void>(it);
 }
 
-void Server::active_fds(vector<pollfd>::iterator it)
+void Server::active_fds(std::vector<pollfd>::iterator it)
 {
     is_close_connection = false;
     if (it->revents & POLLIN)
@@ -177,7 +177,7 @@ void Server::active_fds(vector<pollfd>::iterator it)
 void Server::compress_array()
 {
     is_compress = false;
-    for (vector<pollfd>::iterator it = poll_fds.begin(); it != poll_fds.end();)
+    for (std::vector<pollfd>::iterator it = poll_fds.begin(); it != poll_fds.end();)
     {
         if (it->fd == -1)
             it = poll_fds.erase(it);
@@ -192,7 +192,7 @@ void Server::start()
     {
         polling();
 
-        for (vector<pollfd>::iterator it = poll_fds.begin(); it != poll_fds.end(); it++)
+        for (std::vector<pollfd>::iterator it = poll_fds.begin(); it != poll_fds.end(); it++)
         {
             // reventsに変化がない場合はcontinue
             if (it->revents == 0)

@@ -14,9 +14,6 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
-#include "Socket.hpp"
-
-using namespace std;
 
 class Server
 {
@@ -25,12 +22,12 @@ public:
     bool is_compress;
 
     // 接続要求受け取りに使う
-    set<int> listen_fds;
+    std::set<int> listen_fds;
     // すべてのfd
-    vector<pollfd> poll_fds;
+    std::vector<pollfd> poll_fds;
 
     // fd, 受け取ったデータ
-    map<int, std::string> received_data;
+    std::map<int, std::string> received_data;
 
     // methods
     Server();
@@ -46,8 +43,8 @@ public:
 
     void polling();
     void accept_fds(int fd);
-    void active_fds(vector<pollfd>::iterator it);
+    void active_fds(std::vector<pollfd>::iterator it);
     void compress_array();
-    void receive(vector<pollfd>::iterator it);
-    void post(vector<pollfd>::iterator it);
+    void receive(std::vector<pollfd>::iterator it);
+    void post(std::vector<pollfd>::iterator it);
 };
