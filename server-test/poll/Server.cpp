@@ -229,14 +229,16 @@ void Server::active_fds(std::vector<pollfd>::iterator it)
     if (it->revents & POLLIN)
     {
         receive_and_concat_data(it);
-        if (is_close_connection) {
-            return ;
+        if (is_close_connection)
+        {
+            return;
         }
         // bodyまで受け取ったらtrueを返す
         // builderはfdごとに途中処理のデータを管理する
-        if (builder.divide_data(received_data[it->fd])) {
+        if (builder.divide_data(it->fd, received_data[it->fd]))
+        {
             // parseが終わったらそのfdの状態を破棄する
-//            builder.parse_data();
+            builder.parse_data();
         }
     }
     if (it->revents & POLLOUT)

@@ -1,14 +1,23 @@
 #ifndef HTTPREQUEST_HPP
 #define HTTPREQUEST_HPP
 #include <string>
+#include <map>
+#include <vector>
 
 class HTTPRequest
 {
 public:
-    HTTPRequest();
-    ~HTTPRequest();
+    enum START_LINE_KEYS
+    {
+        SL_METHOD,
+        SL_PATH,
+        SL_VERSION
+    };
 
-    std::string start_line;
+    HTTPRequest(void);
+    ~HTTPRequest(void);
+
+    std::vector<std::string> start_line;
     std::string header;
     std::string body;
 };
@@ -25,6 +34,7 @@ public:
         BODY,
         DONE
     };
+
     // これにパースしたものを詰めていって返す
     HTTPRequest parsed_data;
 
@@ -33,20 +43,21 @@ public:
     std::string header;
     std::string body;
 
-    // 処理中のデータを入れておく箱
-    std::string in_processing_data;
+    // 処理中のデータを入れておく箱(fdごとに管理する)
+    std::map<int, std::string> in_processing_data;
 
     ParsingPhase phase;
 
-    HTTPRequestBuilder();
-    ~HTTPRequestBuilder();
+    HTTPRequestBuilder(void);
+    ~HTTPRequestBuilder(void);
 
-    bool divide_data(std::string data);
+    bool divide_data(int fd, std::string data);
 
-    HTTPRequest parse_data();
-    void parse_start_line();
-    void parse_header();
-    void parse_body();
+    void parse_start_line(void);
+    std::string parse_header(void);
+    std::string parse_body(void);
+
+    void parse_data(void);
 
 private:
 };
