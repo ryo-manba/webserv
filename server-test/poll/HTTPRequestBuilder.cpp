@@ -37,13 +37,10 @@ bool HTTPRequestBuilder::divide_data(int fd, std::string data)
         data = data.substr(start, data.size());
     }
 
-    debug(start);
-
     // 3つに分割する
     size_t end = 0;
     while (1)
     {
-        debug(phase);
         switch (phase)
         {
         case (START_LINE_END):
@@ -74,18 +71,15 @@ bool HTTPRequestBuilder::divide_data(int fd, std::string data)
             start_line = data.substr(start, end);
             start = end + 2;
             phase = HEADER;
-            debug(start_line);
             break;
         case HEADER:
             header = data.substr(start, end - start);
             start = end + 4;
             phase = BODY;
-            debug(header);
             break;
         case BODY:
             body = data.substr(start, end - start);
             phase = DONE;
-            debug(body);
             return true;
         default:;
             //            throw std::runtime_error("invalid phase");
@@ -123,10 +117,6 @@ void HTTPRequestBuilder::parse_start_line(void)
     std::vector<std::string> parsing_start_line;
 
     parsing_start_line = split_string(start_line, " ");
-    for (size_t i = 0; i < parsing_start_line.size(); i++)
-    {
-        debug(parsing_start_line[i]);
-    }
     if (parsing_start_line.size() != 3)
     {
         throw std::runtime_error("invalid start line");
@@ -157,11 +147,56 @@ void HTTPRequestBuilder::parse_header(void)
     parsed_data.header = mp;
 }
 
+void HTTPRequestBuilder::parse_body(void)
+{
+    parsed_data.body = body;
+}
+
+void HTTPRequestBuilder::show_request(void)
+{
+//    typedef std::vector<std::string>::iterator s_it;
+    typedef std::map<std::string, std::string>::iterator h_it;
+    const std::string YELLOW = "\e[33m";
+    const std::string RESET = "\e[0m";
+
+    std::cout << YELLOW
+              << "======= Show request ======="
+              << RESET
+              << std::endl;
+
+    std::cout << YELLOW
+              << "[START LINE]"
+              << RESET
+              << std::endl;
+
+    std::cout << "METHOD : " << parsed_data.start_line[HTTPRequest::SL_METHOD] << std::endl;
+    std::cout << "PATH   : " << parsed_data.start_line[HTTPRequest::SL_PATH] << std::endl;
+    std::cout << "VERSION: " << parsed_data.start_line[HTTPRequest::SL_VERSION] << std::endl;
+
+    std::cout << YELLOW
+              << "[HEADER]"
+              << RESET
+              << std::endl;
+
+    for (h_it it = parsed_data.header.begin(); it != parsed_data.header.end(); it++) {
+        std::cout << it->first << ": " << it->second << std::endl;
+    }
+
+    std::cout << YELLOW
+              << "[BODY]"
+              << RESET
+              << std::endl;
+
+    std::cout << parsed_data.body << std::endl;
+    std::cout << std::endl;
+}
+
+// それぞれを適切に分割する
 void HTTPRequestBuilder::parse_data(void)
 {
     parse_start_line();
     parse_header();
-    //    parse_body();
+    parse_body();
 
-    //    return parsed_data;
+    show_request();
 }

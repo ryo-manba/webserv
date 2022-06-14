@@ -9,7 +9,7 @@ class HTTPRequest
 public:
     enum STARTLINE_KEYS
     {
-        SL_METHOD,
+        SL_METHOD = 0,
         SL_PATH,
         SL_VERSION
     };
@@ -58,6 +58,9 @@ public:
     void parse_body(void);
 
     void parse_data(void);
+
+    // debug
+    void show_request(void);
 
 private:
 };
