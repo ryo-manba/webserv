@@ -57,6 +57,7 @@ public:
     // レスポンスをデータにエンコード
 //    write_buffer_t  encode_to_write_data(response_t response);
 
+    void parse_request(int fd);
 
     // データの送信
     void send_data(std::vector<pollfd>::iterator it);

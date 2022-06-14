@@ -1,5 +1,10 @@
 #include "Server.hpp"
 #include "test_common.hpp"
+#include <sstream>
+
+#define LF (unsigned char)'\n'
+#define CR (unsigned char)'\r'
+#define CRLF "\r\n"
 
 void error_exit(const char *msg)
 {
@@ -202,9 +207,9 @@ std::string Server::create_response(void)
 void Server::send_data(std::vector<pollfd>::iterator it)
 {
     static_cast<void>(it);
-    DOUT() << "it->fd: " << it->fd << std::endl;
-    DOUT() << "send message:" << std::endl;
-    DOUT() << create_response() << std::endl;
+    // DOUT() << "it->fd: " << it->fd << std::endl;
+    // DOUT() << "send message:" << std::endl;
+    // DOUT() << create_response() << std::endl;
     std::string resp = create_response();
     size_t len = resp.size();
     send(it->fd, resp.c_str(), len, 0);
@@ -217,12 +222,102 @@ void Server::send_data(std::vector<pollfd>::iterator it)
     }
 }
 
+/**
+ * 1. 開始行を探す
+ * 2. startlineのパース
+ * 3. headerのパース
+ * 4. bodyのパース
+ */
+void Server::parse_request(int fd)
+{
+    std::string read_buffer(received_data[fd]);
+
+    DOUT() << "parse_request" << std::endl;
+
+    std::string start_line;
+    std::string header;
+    std::string body;
+
+    DOUT() << "read_buffer" << std::endl;
+    DOUT() << read_buffer << std::endl;
+    int cnt = 1;
+    size_t start_idx = 0;
+    size_t start = 0;
+
+    // 先頭の空行を飛ばす
+    while (1)
+    {
+        size_t pos = read_buffer.find(CRLF, start);
+        if (pos == start)
+        {
+            start += 2;
+        }
+        else
+        {
+            read_buffer = read_buffer.substr(start, read_buffer.size() - start);
+            break;
+        }
+    }
+    // 3つに分割する
+    while (1)
+    {
+        debug(cnt);
+        size_t crlf_idx = 0;
+
+        if (cnt == 1)
+        {
+            crlf_idx = read_buffer.find(CRLF, start_idx);
+        }
+        else if (cnt == 2)
+        {
+            crlf_idx = read_buffer.find("\r\n\r\n", start_idx);
+        }
+        else if (cnt == 3)
+        {
+            // content length にする
+            crlf_idx = read_buffer.size();
+        }
+
+        if (crlf_idx == std::string::npos)
+        {
+            break;
+        }
+
+        switch (cnt)
+        {
+        case 1:
+            start_line = read_buffer.substr(start_idx, crlf_idx);
+            cnt += 1;
+            start_idx = crlf_idx + 2;
+            debug(start_line);
+            break;
+        case 2:
+            header = read_buffer.substr(start_idx, crlf_idx - start_idx);
+            cnt += 1;
+            start_idx = crlf_idx + 4;
+            debug(header);
+            break;
+        case 3:
+            body = read_buffer.substr(start_idx, crlf_idx - start_idx);
+            debug(body);
+            return;
+            break;
+            //            default:
+            //                error_exit("http request format error");
+        }
+    }
+    // まだ読み終えてない場合は、もう一度recvする
+    // 読み終わった場合は解析に入る
+    // return ;
+}
+
 void Server::active_fds(std::vector<pollfd>::iterator it)
 {
     is_close_connection = false;
     if (it->revents & POLLIN)
     {
         receive_and_concat_data(it);
+        parse_request(it->fd);
     }
     if (it->revents & POLLOUT)
     {
