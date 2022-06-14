@@ -1,5 +1,10 @@
 NAME := server
-SRCS := Server.cpp test_common.cpp main.cpp
+SRCS := test_common.cpp \
+		main.cpp \
+		Server.cpp \
+		HTTPRequest.cpp \
+		HTTPRequestBuilder.cpp \
+
 OBJS := $(SRCS:.cpp=.o)
 all: $(NAME)
 CXXFLAGS := -Wall -Wextra -Werror -g -fsanitize=address
