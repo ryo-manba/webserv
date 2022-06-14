@@ -7,7 +7,7 @@
 class HTTPRequest
 {
 public:
-    enum START_LINE_KEYS
+    enum STARTLINE_KEYS
     {
         SL_METHOD,
         SL_PATH,
@@ -18,7 +18,7 @@ public:
     ~HTTPRequest(void);
 
     std::vector<std::string> start_line;
-    std::string header;
+    std::map<std::string, std::string> header;
     std::string body;
 };
 
@@ -54,8 +54,8 @@ public:
     bool divide_data(int fd, std::string data);
 
     void parse_start_line(void);
-    std::string parse_header(void);
-    std::string parse_body(void);
+    void parse_header(void);
+    void parse_body(void);
 
     void parse_data(void);
 

@@ -84,8 +84,8 @@ bool HTTPRequestBuilder::divide_data(int fd, std::string data)
             break;
         case BODY:
             body = data.substr(start, end - start);
-            debug(body);
             phase = DONE;
+            debug(body);
             return true;
         default:;
             //            throw std::runtime_error("invalid phase");
@@ -117,9 +117,11 @@ std::vector<std::string> split_string(const std::string &s, std::string delim)
     return split_strs;
 }
 
+// method path version
 void HTTPRequestBuilder::parse_start_line(void)
 {
-    std::vector<std::string> parsing_start_line(3);
+    std::vector<std::string> parsing_start_line;
+
     parsing_start_line = split_string(start_line, " ");
     for (size_t i = 0; i < parsing_start_line.size(); i++)
     {
@@ -127,15 +129,38 @@ void HTTPRequestBuilder::parse_start_line(void)
     }
     if (parsing_start_line.size() != 3)
     {
-        throw std::runtime_error("Invalid start line");
+        throw std::runtime_error("invalid start line");
     }
     parsed_data.start_line = parsing_start_line;
+}
+
+// 文字列: 値
+void HTTPRequestBuilder::parse_header(void)
+{
+    std::stringstream ss(header);
+
+    std::map<std::string, std::string> mp;
+
+    std::string s;
+    while (std::getline(ss, s))
+    {
+        size_t pos = s.find(":");
+        if (pos == std::string::npos)
+        {
+            throw std::runtime_error("invalid header 400 error");
+        }
+        std::string key = s.substr(0, pos);
+        std::string value = s.substr(pos + 1, s.size());
+
+        mp[key] = value;
+    }
+    parsed_data.header = mp;
 }
 
 void HTTPRequestBuilder::parse_data(void)
 {
     parse_start_line();
-    //    parse_header();
+    parse_header();
     //    parse_body();
 
     //    return parsed_data;

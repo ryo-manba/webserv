@@ -2,8 +2,8 @@
 
 HTTPRequest::HTTPRequest()
     : start_line(),
-      header(""),
-      body("")
+      header(),
+      body()
 {
 }
 
