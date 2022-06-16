@@ -36,31 +36,39 @@ public:
     };
 
     // これにパースしたものを詰めていって返す
-    HTTPRequest parsed_data;
-
-    // まずは分割する
-    std::string start_line;
-    std::string header;
-    std::string body;
+    std::map<int, HTTPRequest> parsed_data;
 
     // 処理中のデータを入れておく箱(fdごとに管理する)
     std::map<int, std::string> in_processing_data;
 
-    ParsingPhase phase;
+    struct in_process_t
+    {
+        std::string data;
+        ParsingPhase phase;
+        std::string start_line;
+        std::string header;
+        std::string body;
+        size_t content_length;
+    };
+
+    std::map<int, in_process_t> in_process;
 
     HTTPRequestBuilder(void);
     ~HTTPRequestBuilder(void);
 
-    bool divide_data(int fd, std::string data);
+    void divide_data(int fd);
 
-    void parse_start_line(void);
-    void parse_header(void);
-    void parse_body(void);
+    void parse_start_line(int fd);
+    void parse_header(int fd);
+    void parse_body(int fd);
 
-    void parse_data(void);
+    void parse_data(int fd);
+
+    // ボディまで読み終わったことを確認する
+    bool is_received_up(int fd);
 
     // debug
-    void show_request(void);
+    void show_request(int fd);
 
 private:
 };

@@ -7,10 +7,6 @@
 #define CRLF "\r\n"
 
 HTTPRequestBuilder::HTTPRequestBuilder(void)
-    : start_line(""),
-      header(""),
-      body(""),
-      phase(START_LINE_END)
 {
 }
 
@@ -18,71 +14,99 @@ HTTPRequestBuilder::~HTTPRequestBuilder(void)
 {
 }
 
+bool HTTPRequestBuilder::is_received_up(int fd)
+{
+    size_t start = 0;
+    // 先頭の空行を飛ばす
+    while (in_process[fd].data.find(CRLF, start) == start)
+    {
+        start += 2;
+    }
+    // ヘッダーの終わりまである場合
+    size_t header_end = in_process[fd].data.find("\r\n\r\n", start);
+    if (header_end != std::string::npos)
+    {
+        const std::string header_content_length = "Content-Length:";
+
+        size_t start_pos = in_process[fd].data.find(header_content_length, start);
+        // bodyがない場合
+        if (start_pos == std::string::npos)
+        {
+            return true;
+        }
+        else
+        {
+            size_t end_pos = in_process[fd].data.find(CRLF, start_pos);
+            std::string str = in_process[fd].data.substr(start_pos + header_content_length.size() + 1, end_pos);
+            debug(str);
+            in_process[fd].content_length = stol(str);
+
+            if (header_end + in_process[fd].content_length <= in_process[fd].data.size())
+            {
+                return true;
+            }
+        }
+    }
+    return false;
+}
 /**
  * startline, header, bodyに分割する
  */
-bool HTTPRequestBuilder::divide_data(int fd, std::string data)
+void HTTPRequestBuilder::divide_data(int fd)
 {
     DOUT() << __func__ << std::endl;
-    DOUT() << data << std::endl;
+    DOUT() << "Request:" << std::endl;
+    std::cout << in_process[fd].data << std::endl;
+
+    in_process[fd].phase = START_LINE_END;
 
     size_t start = 0;
     // 先頭の空行を飛ばす
-    while (data.find(CRLF, start) == start)
+    while (in_process[fd].data.find(CRLF, start) == start)
     {
         start += 2;
     }
     if (start != 0)
     {
-        data = data.substr(start, data.size());
+        in_process[fd].data = in_process[fd].data.substr(start, in_process[fd].data.size());
     }
+    debug(in_process[fd].phase);
 
     // 3つに分割する
     size_t end = 0;
-    while (1)
+    while (in_process[fd].phase != DONE)
     {
-        switch (phase)
-        {
-        case (START_LINE_END):
-            end = data.find(CRLF, start);
-            break;
-        case (HEADER):
-            end = data.find("\r\n\r\n", start);
-            break;
-        case (BODY):
-            // content length にする
-            end = data.size();
-            break;
-        default:;
-            //            throw std::runtime_error("invalid phase");
-        }
-
-        if (end == std::string::npos)
-        {
-            // CRLFがない不正なリクエスト or そこまで読み込めていない
-            // まだ読み終えてない場合は、もう一度recvする
-            in_processing_data[fd] = data.substr(start, data.size());
-            return false;
-        }
-
-        switch (phase)
+        switch (in_process[fd].phase)
         {
         case START_LINE_END:
-            start_line = data.substr(start, end);
-            start = end + 2;
-            phase = HEADER;
+            end = in_process[fd].data.find(CRLF, start);
+            debug(end);
             break;
         case HEADER:
-            header = data.substr(start, end - start);
-            start = end + 4;
-            phase = BODY;
+            end = in_process[fd].data.find("\r\n\r\n", start);
             break;
         case BODY:
-            body = data.substr(start, end - start);
-            phase = DONE;
-            return true;
+            end = in_process[fd].content_length;
+            break;
         default:;
-            //            throw std::runtime_error("invalid phase");
+        }
+
+        switch (in_process[fd].phase)
+        {
+        case START_LINE_END:
+            in_process[fd].start_line = in_process[fd].data.substr(start, end);
+            start = end + 2;
+            in_process[fd].phase = HEADER;
+            break;
+        case HEADER:
+            in_process[fd].header = in_process[fd].data.substr(start, end - start);
+            start = end + 4;
+            in_process[fd].phase = BODY;
+            break;
+        case BODY:
+            in_process[fd].body = in_process[fd].data.substr(start, end);
+            in_process[fd].phase = DONE;
+        default:;
         }
     }
 }
@@ -112,22 +136,22 @@ std::vector<std::string> split_string(const std::string &s, std::string delim)
 }
 
 // method path version
-void HTTPRequestBuilder::parse_start_line(void)
+void HTTPRequestBuilder::parse_start_line(int fd)
 {
     std::vector<std::string> parsing_start_line;
 
-    parsing_start_line = split_string(start_line, " ");
+    parsing_start_line = split_string(in_process[fd].start_line, " ");
     if (parsing_start_line.size() != 3)
     {
         throw std::runtime_error("invalid start line");
     }
-    parsed_data.start_line = parsing_start_line;
+    parsed_data[fd].start_line = parsing_start_line;
 }
 
 // 文字列: 値
-void HTTPRequestBuilder::parse_header(void)
+void HTTPRequestBuilder::parse_header(int fd)
 {
-    std::stringstream ss(header);
+    std::stringstream ss(in_process[fd].header);
 
     std::map<std::string, std::string> mp;
 
@@ -144,17 +168,29 @@ void HTTPRequestBuilder::parse_header(void)
 
         mp[key] = value;
     }
-    parsed_data.header = mp;
+    parsed_data[fd].header = mp;
 }
 
-void HTTPRequestBuilder::parse_body(void)
+void HTTPRequestBuilder::parse_body(int fd)
 {
-    parsed_data.body = body;
+    parsed_data[fd].body = in_process[fd].body;
 }
 
-void HTTPRequestBuilder::show_request(void)
+// それぞれを適切に分割する
+void HTTPRequestBuilder::parse_data(int fd)
 {
-//    typedef std::vector<std::string>::iterator s_it;
+    parse_start_line(fd);
+    parse_header(fd);
+    parse_body(fd);
+
+    // DEBUG:
+    show_request(fd);
+}
+
+// DEBUG:
+void HTTPRequestBuilder::show_request(int fd)
+{
+    //    typedef std::vector<std::string>::iterator s_it;
     typedef std::map<std::string, std::string>::iterator h_it;
     const std::string YELLOW = "\e[33m";
     const std::string RESET = "\e[0m";
@@ -169,16 +205,17 @@ void HTTPRequestBuilder::show_request(void)
               << RESET
               << std::endl;
 
-    std::cout << "METHOD : " << parsed_data.start_line[HTTPRequest::SL_METHOD] << std::endl;
-    std::cout << "PATH   : " << parsed_data.start_line[HTTPRequest::SL_PATH] << std::endl;
-    std::cout << "VERSION: " << parsed_data.start_line[HTTPRequest::SL_VERSION] << std::endl;
+    std::cout << "METHOD : " << parsed_data[fd].start_line[HTTPRequest::SL_METHOD] << std::endl;
+    std::cout << "PATH   : " << parsed_data[fd].start_line[HTTPRequest::SL_PATH] << std::endl;
+    std::cout << "VERSION: " << parsed_data[fd].start_line[HTTPRequest::SL_VERSION] << std::endl;
 
     std::cout << YELLOW
               << "[HEADER]"
               << RESET
               << std::endl;
 
-    for (h_it it = parsed_data.header.begin(); it != parsed_data.header.end(); it++) {
+    for (h_it it = parsed_data[fd].header.begin(); it != parsed_data[fd].header.end(); it++)
+    {
         std::cout << it->first << ": " << it->second << std::endl;
     }
 
@@ -187,16 +224,6 @@ void HTTPRequestBuilder::show_request(void)
               << RESET
               << std::endl;
 
-    std::cout << parsed_data.body << std::endl;
+    std::cout << parsed_data[fd].body << std::endl;
     std::cout << std::endl;
-}
-
-// それぞれを適切に分割する
-void HTTPRequestBuilder::parse_data(void)
-{
-    parse_start_line();
-    parse_header();
-    parse_body();
-
-    show_request();
 }

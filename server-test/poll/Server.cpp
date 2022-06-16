@@ -118,18 +118,15 @@ void Server::accept_connection(int fd)
             {
                 error_exit("accept() failed");
             }
-            // DOUT() << "===============EWOULDBLOCK================" << std::endl;
             break;
         }
 
         pollfd pfd;
         pfd.fd = new_sd;
-        //        pfd.events = (POLLIN | POLLOUT);
         pfd.events = POLLIN;
 
         // active socketを追加する
         poll_fds.push_back(pfd);
-        // DOUT() << "poll_fds.push_back(new_fd)" << std::endl;
     }
 }
 
@@ -139,43 +136,43 @@ void Server::accept_connection(int fd)
 void Server::receive_and_concat_data(std::vector<pollfd>::iterator it)
 {
     char buf[1024];
-    while (1)
+
+    int rc = recv(it->fd, buf, sizeof(buf), 0);
+    if (rc < 0)
     {
-        // すべてのデータを受け取る
-        int rc = recv(it->fd, buf, sizeof(buf), 0);
-        if (rc < 0)
+        //        if (errno != EWOULDBLOCK)
+        //            error_exit("recv() failed");
+        DOUT() << "finished receive" << std::endl;
+        sleep(10);
+        for (std::vector<pollfd>::iterator it2 = poll_fds.begin(); it2 != poll_fds.end(); it2++)
         {
-            if (errno != EWOULDBLOCK)
-                error_exit("recv() failed");
-
-            DOUT() << "finished receive" << std::endl;
-            for (std::vector<pollfd>::iterator it2 = poll_fds.begin(); it2 != poll_fds.end(); it2++)
+            if (it2->fd == it->fd)
             {
-                if (it2->fd == it->fd)
-                {
-                    it2->events |= POLLOUT;
-                }
+                it2->events |= POLLOUT;
             }
-            break;
         }
-        // recvの戻り値が0の場合 connectionを切断する
-        if (rc == 0)
-        {
-            DSOUT() << "Connection closed" << std::endl;
-            DSOUT() << received_data[it->fd] << std::endl;
-            received_data[it->fd] = "";
-
-            is_close_connection = true;
-            break;
-        }
-        received_data[it->fd] += std::string(buf, rc);
     }
+    // recvの戻り値が0の場合 connectionを切断する
+    if (rc == 0)
+    {
+        DSOUT() << "Connection closed" << std::endl;
+        // DSOUT() << received_data[it->fd] << std::endl;
+        // received_data[it->fd] = "";
+        DSOUT() << builder.in_process[it->fd].data << std::endl;
+        builder.in_process[it->fd].data = "";
+
+        is_close_connection = true;
+    }
+    //    received_data[it->fd] += std::string(buf, rc);
+    builder.in_process[it->fd].data += std::string(buf, rc);
+
     // データの受信が終わったのでfdをクローズする
     if (is_close_connection == true)
     {
         close(it->fd);
         it->fd = -1;
         is_compress = true;
+        is_close_connection = false;
     }
 }
 
@@ -233,12 +230,16 @@ void Server::active_fds(std::vector<pollfd>::iterator it)
         {
             return;
         }
-        // bodyまで受け取ったらtrueを返す
-        // builderはfdごとに途中処理のデータを管理する
-        if (builder.divide_data(it->fd, received_data[it->fd]))
+        // bodyまで受け取ったか確認する
+        if (builder.is_received_up(it->fd))
         {
+            builder.divide_data(it->fd);
+
             // parseが終わったらそのfdの状態を破棄する
-            builder.parse_data();
+            builder.parse_data(it->fd);
+            builder.in_process.erase(it->fd);
+
+            it->events |= POLLOUT;
         }
     }
     if (it->revents & POLLOUT)
