@@ -38,7 +38,6 @@ bool HTTPRequestBuilder::is_received_up(int fd)
         {
             size_t end_pos = in_process[fd].data.find(CRLF, start_pos);
             std::string str = in_process[fd].data.substr(start_pos + header_content_length.size() + 1, end_pos);
-            debug(str);
             in_process[fd].content_length = stol(str);
 
             if (header_end + in_process[fd].content_length <= in_process[fd].data.size())
@@ -54,9 +53,9 @@ bool HTTPRequestBuilder::is_received_up(int fd)
  */
 void HTTPRequestBuilder::divide_data(int fd)
 {
-    DOUT() << __func__ << std::endl;
-    DOUT() << "Request:" << std::endl;
-    std::cout << in_process[fd].data << std::endl;
+//    DOUT() << __func__ << std::endl;
+//    DOUT() << "Request:" << std::endl;
+//    std::cout << in_process[fd].data << std::endl;
 
     in_process[fd].phase = START_LINE_END;
 
@@ -70,7 +69,6 @@ void HTTPRequestBuilder::divide_data(int fd)
     {
         in_process[fd].data = in_process[fd].data.substr(start, in_process[fd].data.size());
     }
-    debug(in_process[fd].phase);
 
     // 3つに分割する
     size_t end = 0;
@@ -80,7 +78,6 @@ void HTTPRequestBuilder::divide_data(int fd)
         {
         case START_LINE_END:
             end = in_process[fd].data.find(CRLF, start);
-            debug(end);
             break;
         case HEADER:
             end = in_process[fd].data.find("\r\n\r\n", start);

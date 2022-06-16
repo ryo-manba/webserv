@@ -57,8 +57,8 @@ public:
     void compress_array(void);
     void receive_and_concat_data(std::vector<pollfd>::iterator it);
 
-    // レスポンスの生成()
-    std::string create_response(void);
+    // レスポンスの生成
+    std::string create_response(int fd);
 
     // レスポンスをデータにエンコード
     //    write_buffer_t  encode_to_write_data(response_t response);

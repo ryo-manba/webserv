@@ -107,7 +107,6 @@ void Server::polling(void)
 
 void Server::accept_connection(int fd)
 {
-    // DOUT() << "Listening socket is readable" << std::endl;
     // リッスン待ちのfdをすべて受け入れる
     while (1)
     {
@@ -140,30 +139,14 @@ void Server::receive_and_concat_data(std::vector<pollfd>::iterator it)
     int rc = recv(it->fd, buf, sizeof(buf), 0);
     if (rc < 0)
     {
-        //        if (errno != EWOULDBLOCK)
-        //            error_exit("recv() failed");
-        DOUT() << "finished receive" << std::endl;
-        sleep(10);
-        for (std::vector<pollfd>::iterator it2 = poll_fds.begin(); it2 != poll_fds.end(); it2++)
-        {
-            if (it2->fd == it->fd)
-            {
-                it2->events |= POLLOUT;
-            }
-        }
+        error_exit("recv failed");
     }
     // recvの戻り値が0の場合 connectionを切断する
     if (rc == 0)
     {
-        DSOUT() << "Connection closed" << std::endl;
-        // DSOUT() << received_data[it->fd] << std::endl;
-        // received_data[it->fd] = "";
-        DSOUT() << builder.in_process[it->fd].data << std::endl;
-        builder.in_process[it->fd].data = "";
-
+        DOUT() << "Connection closed" << std::endl;
         is_close_connection = true;
     }
-    //    received_data[it->fd] += std::string(buf, rc);
     builder.in_process[it->fd].data += std::string(buf, rc);
 
     // データの受信が終わったのでfdをクローズする
@@ -176,9 +159,10 @@ void Server::receive_and_concat_data(std::vector<pollfd>::iterator it)
     }
 }
 
-std::string Server::create_response(void)
+std::string Server::create_response(int fd)
 {
     std::stringstream ss;
+    std::string message =  "response to " + std::to_string(fd) + "\n";
 
     // status line
     ss << "HTTP/1.1 " << 200 << " "
@@ -188,7 +172,7 @@ std::string Server::create_response(void)
     // header
     ss << "Date: Sun, 12 Jun 2022 13:23:58 GMT"
        << "\r\n";
-    ss << "Content-Length: 5\r\n";
+    ss << "Content-Length: " + std::to_string(message.size()) + "\r\n";
     ss << "Content-Type: text/html\r\n";
     ss << "Connection: keep-alive\r\n";
     ss << "Last-Modified: Thu, 27 Feb 2020 07:10:16 GMT\r\n";
@@ -197,18 +181,16 @@ std::string Server::create_response(void)
     ss << "Server: Apache\r\n";
     ss << "\r\n";
 
+
     // message
-    ss << "hello";
+    ss << message;
 
     return ss.str();
 }
 
 void Server::send_data(std::vector<pollfd>::iterator it)
 {
-    // DOUT() << "it->fd: " << it->fd << std::endl;
-    // DOUT() << "send message:" << std::endl;
-    // DOUT() << create_response() << std::endl;
-    std::string resp = create_response();
+    std::string resp = create_response(it->fd);
     size_t len = resp.size();
     send(it->fd, resp.c_str(), len, 0);
     for (std::vector<pollfd>::iterator it2 = poll_fds.begin(); it2 != poll_fds.end(); it2++)
